@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <stdexcept>
+#include <string>
 
 namespace ast26::container {
 
