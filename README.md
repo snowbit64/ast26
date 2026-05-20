@@ -1,197 +1,94 @@
 # ast26
 
-**CLI and Python library for Farming Simulator 2026 AST (GS2D v8) texture files.**
+Texture converter for **Farming Simulator 2026** AST files (GS2D v8 container).
 
-Read, write and inspect the `.ast` texture container used by
-*Farming Simulator 2026* — with built-in ASTC encoding/decoding via
-[astcenc](https://github.com/ARM-software/astc-encoder).
+Standalone C++ CLI with embedded [astcenc](https://github.com/ARM-software/astc-encoder) for ASTC compression/decompression, [bcdec](https://github.com/iOrange/bcdec) for BCn/DDS block decoding, and [stb](https://github.com/nothings/stb) for PNG/JPG I/O.
 
-> Based on the CLI conventions of
-> [gstextconv](https://github.com/snowbit64/gstextconv) by SnowBit64.
+Based on the [gstextconv](https://github.com/snowbit64/gstextconv) project by SnowBit64.
 
----
+## Features
 
-## Installation
+- **Decode** `.ast` (GS2D v8) → PNG / JPG / ASTC / raw-RGBA
+- **Encode** PNG / JPG / DDS → `.ast` (GS2D v8) with configurable ASTC block size
+- **Inspect** AST file metadata (JSON output)
+- DDS input support (BC1/BC3/BC4/BC5/BC7, uncompressed RGBA/BGRA/RGB, DX10 arrays)
+- Multi-layer (2DArray, cubemap) support
+- Full mipmap chain generation
+- Standalone static binary — no runtime dependencies
 
-```bash
-pip install .
-```
+## Supported ASTC Block Sizes
 
-Requires **Python ≥ 3.10** and **Pillow ≥ 10**.
+4x4, 5x4, 5x5, 6x5, 6x6, 8x5, 8x6, 8x8, 10x5, 10x6, 10x8, 10x10, 12x10, 12x12
 
-For ASTC encoding/decoding the
-[astcenc](https://github.com/ARM-software/astc-encoder) CLI must be on
-`PATH`. The tool will attempt to auto-install it if it is missing.
-
----
-
-## CLI Usage
-
-```
-ast26 [global flags] <command> [options]
-```
-
-Global flags:
-
-| Flag | Description |
-| :--- | :--- |
-| `-V`, `--version` | Print version |
-| `-i`, `--info` | Print build metadata and capabilities |
-
-Subcommands: [`encoder`](#encoder), [`decoder`](#decoder),
-[`inspect`](#inspect).
-
-### `encoder`
-
-Convert `.png` / `.jpg` → `.ast` container.
+## Build
 
 ```bash
-# single file
-ast26 encoder -f texture.png -o texture.ast
-
-# batch: every PNG in a folder, overwrite enabled
-ast26 encoder -d ./in -u ./out -O
-
-# encode with max mipmaps and 6x6 blocks
-ast26 encoder -f texture.png -o texture.ast -m max -k 6x6
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
 ```
 
-| Flag | Description |
-| :--- | :--- |
-| `-f`, `-b`, `-d`, `-r` | Inputs (file / batch / directory / recursive) |
-| `-k`, `--block-size <NxM>` | ASTC block size (`4x4` … `12x12`) |
-| `-q`, `--quality <fast\|medium\|thorough>` | astcenc preset |
-| `-s`, `--color-space <srgb\|linear\|alpha>` | Color space |
-| `-t`, `--texture-type <2d\|2darray>` | Texture type |
-| `-n`, `--ideal-origin <topLeft\|bottomLeft>` | Stored Y-axis origin |
-| `-m`, `--num-mipmaps <max\|N>` | Number of additional mip levels |
-| `-o`, `-u`, `-O` | Output file / directory / overwrite |
-| `-x`, `--delete-source-file` | Delete source after a successful write |
-| `-v`, `--verbose` | Per-file report |
+The binary is at `build/ast26` (Linux) or `build/Release/ast26.exe` (Windows).
 
-### `decoder`
-
-Convert `.ast` → `.png` / `.jpg` / `.astc` / `raw-rgba`.
+### Cross-compile for Android aarch64
 
 ```bash
-# decode to PNG
-ast26 decoder -f texture.ast -o texture.png
-
-# decode all layers
-ast26 decoder -f cubemap.ast -l -u ./out -O
-
-# recursive batch decode
-ast26 decoder -d ./in -r -u ./png -O
+cmake -B build \
+  -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
+  -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24 \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
 ```
 
-| Flag | Description |
-| :--- | :--- |
-| `-F`, `--format <png\|jpg\|astc\|raw-rgba>` | Output format (default: png) |
-| `-i`, `--mip-index <n>` | Specific mip level (default 0) |
-| `-m`, `--all-mips` | Extract every mip level |
-| `-L`, `--layer-index <n>` | Specific layer (default 0) |
-| `-l`, `--all-layers` | Extract every array layer |
-| `-P`, `--pattern <tpl>` | Filename template for multi-output |
-| `-g`, `--real-origin` | Preserve stored orientation (no auto-flip) |
-| `-p`, `-x`, `-v` | Same semantics as in `encoder` |
+## Usage
 
-### `inspect`
-
-Print container metadata as JSON.
+### Inspect
 
 ```bash
 ast26 inspect -f texture.ast -a
-ast26 inspect -d ./in -r -a
+ast26 inspect -d textures/ -r -a
 ```
 
-| Flag | Field |
-| :--- | :--- |
-| `-m`, `--num-mipmaps` | Number of mipmaps |
-| `-l`, `--num-layers` | Number of layers |
-| `-c`, `--compression` | Compression format |
-| `-s`, `--size` | Base width and height |
-| `--ideal-origin` | Stored ideal origin |
-| `-S`, `--color-space` | Color space |
-| `-n`, `--channels` | Number of channels |
-| `-a`, `--all` | All fields above |
+### Decode
 
-### Verbose output
-
-Passing `-v` / `--verbose` to any subcommand emits one record per file:
-
-```
-ast26:
-    index: 1;
-    filename: in/texture.ast;
-    new file: in/texture.png;
-    process duration: 28.085ms;
-    process type: decoding;
-    status: success;
+```bash
+ast26 decoder -f texture.ast -o output.png
+ast26 decoder -f texture.ast -F jpg -o output.jpg
+ast26 decoder -f texture.ast -l -u ./layers/ -O          # all layers
+ast26 decoder -f texture.ast -m -u ./mips/ -O             # all mipmaps
+ast26 decoder -d textures/ -r -u ./output/ -O -v          # batch decode
 ```
 
----
+### Encode
 
-## Python API
-
-```python
-import ast26
-
-# inspect
-with open("texture.ast", "rb") as f:
-    data = f.read()
-
-info = ast26.inspect_file(data)
-print(info.compression, info.num_mipmaps, info.num_layers)
-
-# decode
-img = ast26.decode(data)
-print(img.width, img.height, img.num_layers, img.num_mipmaps)
-layer0_mip0 = img.layers[0][0]  # MipLevel with .data (RGBA8 bytes)
-
-# encode
-png_bytes = open("texture.png", "rb").read()
-ast_data = ast26.encode(
-    png_bytes,
-    block_size=(6, 6),
-    quality="medium",
-    color_space="srgb",
-    num_mipmaps=5,
-)
-open("texture.ast", "wb").write(ast_data)
+```bash
+ast26 encoder -f input.png -o output.ast -k 6x6 -q medium
+ast26 encoder -f input.dds -o output.ast -k 4x4 -m max
+ast26 encoder -d images/ -r -u ./output/ -O -v            # batch encode
 ```
 
----
+### CLI Flags
 
-## Supported Formats
+Follows [gstextconv](https://github.com/snowbit64/gstextconv) flag conventions:
 
-### GS2D Container
-
-| Container | Version | Support |
-| :--- | :--- | :--- |
-| GS2D / FS26 | `v8` | read + write |
-
-### ASTC block sizes
-
-`4x4`, `5x4`, `5x5`, `6x5`, `6x6`, `8x5`, `8x6`, `8x8`, `10x5`, `10x6`,
-`10x8`, `10x10`, `12x10`, `12x12`.
-
----
-
-## Repository Layout
-
-```
-ast26/                   Python package
-  __init__.py            Public API
-  container.py           GS2D v8 header parsing and writing
-  codec.py               Decode / encode / inspect logic
-  astc.py                ASTC compression bridge (via astcenc CLI)
-  cli.py                 CLI entry point
-samples/                 FS26 reference .ast textures
-pyproject.toml           Build configuration
-```
-
----
+| Flag | Description |
+|------|-------------|
+| `-f` | Single input file |
+| `-b` | Batch input (repeatable) |
+| `-d` | Directory input |
+| `-r` | Recursive directory walk |
+| `-k` | ASTC block size (e.g. `6x6`) |
+| `-q` | Quality (`fast`, `medium`, `thorough`) |
+| `-s` | Color space (`srgb`, `linear`, `alpha`) |
+| `-m` | Mipmaps (encoder: count/`max`; decoder: all mips) |
+| `-F` | Output format (`png`, `jpg`, `astc`, `raw-rgba`) |
+| `-l` | All layers |
+| `-o` | Output file path |
+| `-u` | Output directory |
+| `-O` | Overwrite existing |
+| `-v` | Verbose output |
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+Third-party components: astcenc (Apache-2.0), bcdec (MIT), miniz (MIT), stb (MIT/public domain).
