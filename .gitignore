@@ -1,8 +1,10 @@
-__pycache__/
-*.py[cod]
-*.egg-info/
-dist/
 build/
-.eggs/
-*.egg
-.venv/
+cmake-build-*/
+*.o
+*.a
+*.obj
+*.lib
+*.exe
+.vscode/
+.idea/
+CMakeUserPresets.json
