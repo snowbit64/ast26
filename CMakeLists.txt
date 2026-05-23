@@ -10,8 +10,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-option(AST26_BUILD_CLI  "Build the ast26 CLI executable"  ON)
-option(AST26_BUILD_GIMP "Build the GIMP 2.x file plug-in" OFF)
+option(AST26_BUILD_CLI   "Build the ast26 CLI executable"   ON)
+option(AST26_BUILD_GIMP  "Build the GIMP 2.x file plug-in"  OFF)
+option(AST26_BUILD_GIMP3 "Build the GIMP 3.0 file plug-in"  OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -137,4 +138,31 @@ if(AST26_BUILD_GIMP)
     endif()
     install(TARGETS file-ast26
             RUNTIME DESTINATION "${GIMP_PLUGIN_DIR}/plug-ins")
+endif()
+
+# ------------------------------------------------------------------
+# GIMP 3.0 file plug-in (optional, requires libgimp-3.0-dev)
+# ------------------------------------------------------------------
+if(AST26_BUILD_GIMP3)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GIMP3 REQUIRED gimpui-3.0)
+
+    add_executable(file-ast26-gimp3 gimp-plugin/file-ast26-gimp3.cpp)
+    target_include_directories(file-ast26-gimp3 PRIVATE ${GIMP3_INCLUDE_DIRS})
+    target_link_libraries(file-ast26-gimp3 PRIVATE ast26_core ${GIMP3_LIBRARIES})
+    target_link_directories(file-ast26-gimp3 PRIVATE ${GIMP3_LIBRARY_DIRS})
+    target_compile_options(file-ast26-gimp3 PRIVATE ${GIMP3_CFLAGS_OTHER})
+    set_target_properties(file-ast26-gimp3 PROPERTIES OUTPUT_NAME file-ast26)
+
+    # GIMP 3.0 requires plug-ins in their own subdirectory
+    execute_process(
+        COMMAND gimptool-3.0 --gimpplugindir
+        OUTPUT_VARIABLE GIMP3_PLUGIN_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    if(NOT GIMP3_PLUGIN_DIR)
+        set(GIMP3_PLUGIN_DIR "${CMAKE_INSTALL_PREFIX}/lib/gimp/3.0")
+    endif()
+    install(TARGETS file-ast26-gimp3
+            RUNTIME DESTINATION "${GIMP3_PLUGIN_DIR}/plug-ins/file-ast26")
 endif()
