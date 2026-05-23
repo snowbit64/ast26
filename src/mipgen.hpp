@@ -10,6 +10,10 @@ namespace ast26::mip {
 std::vector<std::uint8_t> downsample_rgba8(
     const std::uint8_t* rgba, int w, int h, int& out_w, int& out_h);
 
+/// Resize an RGBA8 image to arbitrary dimensions using bilinear filtering.
+std::vector<std::uint8_t> resize_rgba8(
+    const std::uint8_t* rgba, int src_w, int src_h, int dst_w, int dst_h);
+
 /// Generate a mip chain of RGBA8 images starting from `base`. The returned
 /// vector contains `count` entries starting with `base` at index 0.
 std::vector<std::vector<std::uint8_t>> build_chain_rgba8(
