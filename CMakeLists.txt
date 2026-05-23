@@ -11,7 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(AST26_BUILD_CLI  "Build the ast26 CLI executable"  ON)
-option(AST26_BUILD_GIMP "Build the GIMP 2.x file plug-in" ON)
+option(AST26_BUILD_GIMP "Build the GIMP 2.x file plug-in" OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
