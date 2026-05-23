@@ -15,6 +15,7 @@ Based on the [gstextconv](https://github.com/snowbit64/gstextconv) project by Sn
 - Multi-layer (2DArray, cubemap) support
 - Full mipmap chain generation
 - Standalone static binary — no runtime dependencies
+- **GIMP 2.10 plug-in** — open and export `.ast` files directly in GIMP (see [gimp-plugin/](gimp-plugin/README.md))
 
 ## Supported ASTC Block Sizes
 
@@ -28,6 +29,21 @@ cmake --build build --config Release --parallel
 ```
 
 The binary is at `build/ast26` (Linux) or `build/Release/ast26.exe` (Windows).
+
+### Build with GIMP plug-in
+
+```bash
+sudo apt-get install libgimp2.0-dev          # Ubuntu / Debian
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DAST26_BUILD_GIMP=ON
+cmake --build build --config Release --parallel
+```
+
+Install the plug-in into GIMP's user directory:
+
+```bash
+mkdir -p ~/.config/GIMP/2.10/plug-ins
+cp build/file-ast26 ~/.config/GIMP/2.10/plug-ins/
+```
 
 ### Cross-compile for Android aarch64
 

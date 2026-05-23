@@ -10,7 +10,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-option(AST26_BUILD_CLI "Build the ast26 CLI executable" ON)
+option(AST26_BUILD_CLI  "Build the ast26 CLI executable"  ON)
+option(AST26_BUILD_GIMP "Build the GIMP 2.x file plug-in" OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -109,4 +110,31 @@ if(AST26_BUILD_CLI)
     endif()
 
     install(TARGETS ast26 RUNTIME DESTINATION bin)
+endif()
+
+# ------------------------------------------------------------------
+# GIMP 2.x file plug-in (optional, requires libgimp2.0-dev)
+# ------------------------------------------------------------------
+if(AST26_BUILD_GIMP)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GIMP REQUIRED gimpui-2.0)
+
+    add_executable(file-ast26 gimp-plugin/file-ast26.cpp)
+    target_include_directories(file-ast26 PRIVATE ${GIMP_INCLUDE_DIRS})
+    target_link_libraries(file-ast26 PRIVATE ast26_core ${GIMP_LIBRARIES})
+    target_link_directories(file-ast26 PRIVATE ${GIMP_LIBRARY_DIRS})
+    target_compile_options(file-ast26 PRIVATE ${GIMP_CFLAGS_OTHER})
+    set_target_properties(file-ast26 PROPERTIES OUTPUT_NAME file-ast26)
+
+    # Install into the GIMP user plug-ins directory
+    execute_process(
+        COMMAND gimptool-2.0 --gimpplugindir
+        OUTPUT_VARIABLE GIMP_PLUGIN_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    if(NOT GIMP_PLUGIN_DIR)
+        set(GIMP_PLUGIN_DIR "${CMAKE_INSTALL_PREFIX}/lib/gimp/2.0")
+    endif()
+    install(TARGETS file-ast26
+            RUNTIME DESTINATION "${GIMP_PLUGIN_DIR}/plug-ins")
 endif()
