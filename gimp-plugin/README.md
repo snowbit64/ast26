@@ -44,7 +44,33 @@ cmake --build build --config Release --parallel
 
 ## Install
 
-### Automatic (CMake install)
+### Pre-built binaries (recommended)
+
+Download the latest artifact from the [Actions](../../actions) page:
+
+- **Linux**: `ast26-gimp-plugin-linux-x64`
+- **Windows**: `ast26-gimp-plugin-windows-x64`
+
+#### Linux
+
+```bash
+chmod +x file-ast26
+mkdir -p ~/.config/GIMP/2.10/plug-ins
+cp file-ast26 ~/.config/GIMP/2.10/plug-ins/
+```
+
+#### Windows
+
+1. Extract the downloaded zip (`file-ast26.exe` + DLLs)
+2. Copy **all files** to your GIMP plug-ins folder:
+   ```
+   %APPDATA%\GIMP\2.10\plug-ins\
+   ```
+   Or typically: `C:\Users\<user>\AppData\Roaming\GIMP\2.10\plug-ins\`
+
+3. Restart GIMP
+
+### CMake install (Linux)
 
 ```bash
 sudo cmake --install build
@@ -52,7 +78,17 @@ sudo cmake --install build
 
 This places `file-ast26` in the system GIMP plug-ins directory detected by `gimptool-3.0` (or `gimptool-2.0`).
 
-### Manual
+### Build from source (Windows — MSYS2)
+
+```bash
+# Inside MSYS2 MinGW64 shell
+pacman -S mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-gimp pkg-config
+cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DAST26_BUILD_GIMP=ON
+cmake --build build --parallel
+cp build/file-ast26.exe /c/Users/$USER/AppData/Roaming/GIMP/2.10/plug-ins/
+```
+
+### Manual install
 
 Copy the built binary to your GIMP user plug-ins folder:
 

@@ -97,3 +97,48 @@ jobs:
         with:
           name: ast26-gimp3-plugin-linux-x64
           path: build/file-ast26
+
+  build-gimp-plugin-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gimp
+            pkg-config
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -G "MinGW Makefiles" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DAST26_BUILD_CLI=ON \
+            -DAST26_BUILD_GIMP=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Collect plugin and dependencies
+        run: |
+          mkdir -p dist
+          cp build/file-ast26.exe dist/
+          # Copy required MinGW runtime DLLs
+          for dll in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll; do
+            cp /mingw64/bin/$dll dist/ 2>/dev/null || true
+          done
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ast26-gimp-plugin-windows-x64
+          path: dist/
