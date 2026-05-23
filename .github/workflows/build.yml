@@ -72,5 +72,25 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ast26-gimp-plugin-linux-x64
+          name: ast26-gimp2-plugin-linux-x64
+          path: build/file-ast26
+
+  build-gimp3-plugin:
+    runs-on: ubuntu-25.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GIMP 3.0 dev headers
+        run: sudo apt-get update && sudo apt-get install -y libgimp-3.0-dev
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DAST26_BUILD_CLI=ON -DAST26_BUILD_GIMP3=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ast26-gimp3-plugin-linux-x64
           path: build/file-ast26
