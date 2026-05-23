@@ -304,31 +304,54 @@ std::vector<std::uint8_t> encode(const Image& src, const EncodeOptions& opts) {
     const auto& base = src.layers[0][0];
     int w = base.width, h = base.height;
 
+    // Apply resize if requested.
+    Image resized_src;
+    const Image* effective_src = &src;
+    if (opts.resize.has_value()) {
+        auto [rw, rh] = *opts.resize;
+        if (rw > 0 && rh > 0 && (rw != w || rh != h)) {
+            resized_src = src;
+            for (auto& layer : resized_src.layers) {
+                if (!layer.empty()) {
+                    auto& m = layer[0];
+                    m.data = mip::resize_rgba8(m.data.data(), m.width, m.height, rw, rh);
+                    m.width = rw;
+                    m.height = rh;
+                }
+            }
+            resized_src.width = rw;
+            resized_src.height = rh;
+            effective_src = &resized_src;
+            w = rw;
+            h = rh;
+        }
+    }
+
     int num_mips;
     const bool inherit_mipmaps =
         opts.inherit_mipmaps &&
-        src.layers[0].size() > 1;
+        effective_src->layers[0].size() > 1;
     if (inherit_mipmaps) {
-        num_mips = static_cast<int>(src.layers[0].size());
+        num_mips = static_cast<int>(effective_src->layers[0].size());
     } else {
         num_mips = resolve_num_mipmaps(opts.mipmaps, w, h);
     }
 
-    const bool flip = opts.ideal_origin != src.origin;
-    const int num_layers = treat_as_array ? static_cast<int>(src.layers.size()) : 1;
+    const bool flip = opts.ideal_origin != effective_src->origin;
+    const int num_layers = treat_as_array ? static_cast<int>(effective_src->layers.size()) : 1;
     int channels = 4;
-    if (src.color_format == ColorFormat::RGB24) channels = 3;
-    else if (src.color_format == ColorFormat::R8) channels = 1;
+    if (effective_src->color_format == ColorFormat::RGB24) channels = 3;
+    else if (effective_src->color_format == ColorFormat::R8) channels = 1;
 
     std::vector<std::vector<std::uint8_t>> combined_mips(
         static_cast<std::size_t>(num_mips));
 
     for (int L = 0; L < num_layers; ++L) {
-        const auto& src_layer = src.layers[static_cast<std::size_t>(L)];
+        const auto& src_layer = effective_src->layers[static_cast<std::size_t>(L)];
         std::vector<std::pair<int,int>> sizes;
         auto chain = build_layer_chain(
             src_layer, w, h, num_mips, inherit_mipmaps,
-            flip, src.origin, opts.ideal_origin, sizes);
+            flip, effective_src->origin, opts.ideal_origin, sizes);
         for (int mip = 0; mip < num_mips; ++mip) {
             auto blocks = astc::compress_rgba8(
                 chain[mip].data(), sizes[mip].first, sizes[mip].second,

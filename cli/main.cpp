@@ -1040,8 +1040,11 @@ int run_inspect(int argc, char** argv, int start) {
     auto args = parse_args(argc, argv, start, inspect_flags());
     if (args.has({"h", "help"})) { print_inspect_help(); return 0; }
 
-    // Handle --diff mode
+    // Handle --diff mode: supports both `-t a -t b` and `-t a b` syntax.
     if (auto diff_files = args.getall({"t", "diff"}); !diff_files.empty()) {
+        if (diff_files.size() < 2 && !args.positional.empty()) {
+            diff_files.push_back(args.positional.front());
+        }
         if (diff_files.size() < 2) {
             throw Error(Error::Code::InvalidFile, "inspect --diff requires two file paths");
         }
