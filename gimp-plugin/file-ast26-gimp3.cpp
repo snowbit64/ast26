@@ -373,7 +373,8 @@ ast26_export(GimpProcedure        *procedure,
                                                      "ast26-block-size");
     if (parasite) {
         int bx = 0, by = 0;
-        if (sscanf(static_cast<const char*>(gimp_parasite_data(parasite)),
+        guint32 psize = 0;
+        if (sscanf(static_cast<const char*>(gimp_parasite_get_data(parasite, &psize)),
                    "%dx%d", &bx, &by) == 2 && bx > 0 && by > 0) {
             int idx = find_block_index(bx, by);
             const char *block_labels[] = {
