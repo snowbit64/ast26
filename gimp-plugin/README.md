@@ -81,11 +81,12 @@ This places `file-ast26` in the system GIMP plug-ins directory detected by `gimp
 ### Build from source (Windows — MSYS2)
 
 ```bash
-# Inside MSYS2 MinGW64 shell
-pacman -S mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-gimp pkg-config
-cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DAST26_BUILD_GIMP=ON
+# Inside MSYS2 UCRT64 shell (GIMP is only available in ucrt64/clang64 repos)
+pacman -S mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-gimp pkg-config
+cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DAST26_BUILD_GIMP3=ON
 cmake --build build --parallel
-cp build/file-ast26.exe /c/Users/$USER/AppData/Roaming/GIMP/2.10/plug-ins/
+mkdir -p /c/Users/$USER/AppData/Roaming/GIMP/3.0/plug-ins/file-ast26
+cp build/file-ast26.exe /c/Users/$USER/AppData/Roaming/GIMP/3.0/plug-ins/file-ast26/
 ```
 
 ### Manual install
