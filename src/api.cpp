@@ -47,7 +47,7 @@ int resolve_num_mipmaps(int requested, int w, int h) {
 
 }  // namespace
 
-const char* library_version() noexcept { return "1.0.0"; }
+const char* library_version() noexcept { return "1.0.1"; }
 const char* astcenc_version_string() noexcept { return "astcenc 5.3.0 (embedded)"; }
 const char* build_release() noexcept {
 #ifdef AST26_BUILD_RELEASE

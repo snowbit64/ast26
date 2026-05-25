@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(ast26
-    VERSION 1.0.0
+    VERSION 1.0.1
     DESCRIPTION "Texture converter for Farming Simulator 2026 AST (GS2D v8)"
     LANGUAGES CXX C)
 
