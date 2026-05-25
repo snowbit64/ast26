@@ -336,9 +336,13 @@ enum class DecodeKind {
     Rgbx8,        // 32-bit RGB, ignore 4th byte
     Bgr565,       // DXGI 85 B5G6R5_UNORM
     Bgra5551,     // DXGI 86 B5G5R5A1_UNORM
+    R16Float,     // D3DFMT_R16F (FourCC 111): single-channel half -> grey
+    RG16Float,    // D3DFMT_G16R16F (FourCC 112): 2-channel half
     Rgba16Float,  // DXGI_FORMAT_R16G16B16A16_FLOAT (code 10), clamped to [0,1]
     Rgba16Unorm,  // DXGI_FORMAT_R16G16B16A16_UNORM (code 11)
     Rgba16Snorm,  // DXGI_FORMAT_R16G16B16A16_SNORM (code 13)
+    R32Float,     // D3DFMT_R32F (FourCC 114): single-channel float -> grey
+    RG32Float,    // D3DFMT_G32R32F (FourCC 115): 2-channel float
     Rgba32Float,  // DXGI_FORMAT_R32G32B32A32_FLOAT (code 2),  clamped to [0,1]
 };
 
@@ -406,6 +410,13 @@ FormatInfo determine_format(const PixelFormat& pf, std::uint32_t dxgi_format) {
             case 0x32495441: /* 'ATI2' */
             case 0x55354342: /* 'BC5U' */ f.kind = DecodeKind::BC5; break;
             case 0x53354342: /* 'BC5S' */ f.kind = DecodeKind::BC5; break;
+            case 36:  /* D3DFMT_A16B16G16R16 */   f.kind = DecodeKind::Rgba16Unorm; f.is_compressed = false; f.bits = 64; return f;
+            case 111: /* D3DFMT_R16F */             f.kind = DecodeKind::R16Float;    f.is_compressed = false; f.bits = 16; return f;
+            case 112: /* D3DFMT_G16R16F */          f.kind = DecodeKind::RG16Float;   f.is_compressed = false; f.bits = 32; return f;
+            case 113: /* D3DFMT_A16B16G16R16F */    f.kind = DecodeKind::Rgba16Float; f.is_compressed = false; f.bits = 64; return f;
+            case 114: /* D3DFMT_R32F */             f.kind = DecodeKind::R32Float;    f.is_compressed = false; f.bits = 32; return f;
+            case 115: /* D3DFMT_G32R32F */          f.kind = DecodeKind::RG32Float;   f.is_compressed = false; f.bits = 64; return f;
+            case 116: /* D3DFMT_A32B32G32R32F */    f.kind = DecodeKind::Rgba32Float; f.is_compressed = false; f.bits = 128; return f;
             default:
                 throw Error(Error::Code::UnsupportedFormat,
                             "dds: unsupported FourCC");
@@ -438,10 +449,15 @@ std::size_t mip_size(const FormatInfo& f, int w, int h) {
         case DecodeKind::Rgbx8: return static_cast<std::size_t>(w) * h * 4;
         case DecodeKind::Bgr565:
         case DecodeKind::Bgra5551:
+        case DecodeKind::R16Float:
             return static_cast<std::size_t>(w) * h * 2;
+        case DecodeKind::RG16Float:
+        case DecodeKind::R32Float:
+            return static_cast<std::size_t>(w) * h * 4;
         case DecodeKind::Rgba16Float:
         case DecodeKind::Rgba16Unorm:
         case DecodeKind::Rgba16Snorm:
+        case DecodeKind::RG32Float:
             return static_cast<std::size_t>(w) * h * 8;
         case DecodeKind::Rgba32Float:
             return static_cast<std::size_t>(w) * h * 16;
@@ -667,6 +683,44 @@ Mip decode_mip(const std::uint8_t* src, std::size_t size,
             }
             break;
         }
+        case DecodeKind::R16Float: {
+            const std::size_t px_count = static_cast<std::size_t>(w) * h;
+            const std::size_t expected = px_count * 2;
+            if (size < expected) {
+                throw Error(Error::Code::InvalidFile,
+                            "dds: R16F payload truncated");
+            }
+            m.rgba.resize(px_count * 4);
+            for (std::size_t i = 0; i < px_count; ++i) {
+                const std::uint8_t* p = src + i * 2;
+                float v = half_to_float(static_cast<std::uint16_t>(p[0] | (p[1] << 8)));
+                std::uint8_t u = float_to_unorm8(v);
+                m.rgba[i * 4 + 0] = u;
+                m.rgba[i * 4 + 1] = u;
+                m.rgba[i * 4 + 2] = u;
+                m.rgba[i * 4 + 3] = 255;
+            }
+            break;
+        }
+        case DecodeKind::RG16Float: {
+            const std::size_t px_count = static_cast<std::size_t>(w) * h;
+            const std::size_t expected = px_count * 4;
+            if (size < expected) {
+                throw Error(Error::Code::InvalidFile,
+                            "dds: RG16F payload truncated");
+            }
+            m.rgba.resize(px_count * 4);
+            for (std::size_t i = 0; i < px_count; ++i) {
+                const std::uint8_t* p = src + i * 4;
+                float r = half_to_float(static_cast<std::uint16_t>(p[0] | (p[1] << 8)));
+                float g = half_to_float(static_cast<std::uint16_t>(p[2] | (p[3] << 8)));
+                m.rgba[i * 4 + 0] = float_to_unorm8(r);
+                m.rgba[i * 4 + 1] = float_to_unorm8(g);
+                m.rgba[i * 4 + 2] = 0;
+                m.rgba[i * 4 + 3] = 255;
+            }
+            break;
+        }
         case DecodeKind::Rgba16Float: {
             const std::size_t px_count = static_cast<std::size_t>(w) * h;
             const std::size_t expected = px_count * 8;
@@ -731,6 +785,43 @@ Mip decode_mip(const std::uint8_t* src, std::size_t size,
                 m.rgba[i * 4 + 1] = snorm16_to_unorm8(rd_s16(2));
                 m.rgba[i * 4 + 2] = snorm16_to_unorm8(rd_s16(4));
                 m.rgba[i * 4 + 3] = snorm16_to_unorm8(rd_s16(6));
+            }
+            break;
+        }
+        case DecodeKind::R32Float: {
+            const std::size_t px_count = static_cast<std::size_t>(w) * h;
+            const std::size_t expected = px_count * 4;
+            if (size < expected) {
+                throw Error(Error::Code::InvalidFile,
+                            "dds: R32F payload truncated");
+            }
+            m.rgba.resize(px_count * 4);
+            for (std::size_t i = 0; i < px_count; ++i) {
+                float v;
+                std::memcpy(&v, src + i * 4, sizeof(v));
+                std::uint8_t u = float_to_unorm8(v);
+                m.rgba[i * 4 + 0] = u;
+                m.rgba[i * 4 + 1] = u;
+                m.rgba[i * 4 + 2] = u;
+                m.rgba[i * 4 + 3] = 255;
+            }
+            break;
+        }
+        case DecodeKind::RG32Float: {
+            const std::size_t px_count = static_cast<std::size_t>(w) * h;
+            const std::size_t expected = px_count * 8;
+            if (size < expected) {
+                throw Error(Error::Code::InvalidFile,
+                            "dds: RG32F payload truncated");
+            }
+            m.rgba.resize(px_count * 4);
+            for (std::size_t i = 0; i < px_count; ++i) {
+                float comp[2];
+                std::memcpy(comp, src + i * 8, sizeof(comp));
+                m.rgba[i * 4 + 0] = float_to_unorm8(comp[0]);
+                m.rgba[i * 4 + 1] = float_to_unorm8(comp[1]);
+                m.rgba[i * 4 + 2] = 0;
+                m.rgba[i * 4 + 3] = 255;
             }
             break;
         }

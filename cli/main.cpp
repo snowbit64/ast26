@@ -51,7 +51,7 @@ void print_main_help() {
         "\n"
         "Global flags:\n"
         "  -h, --help          show this message (or per-command help)\n"
-        "  -v, --version       print library version (1.0.0)\n"
+        "  -v, --version       print library version (1.0.1)\n"
         "  -l, --license       print license text\n"
         "  -i, --info          print build metadata and capabilities\n"
         "\n"
@@ -689,6 +689,7 @@ int run_encoder(int argc, char** argv, int start) {
         return 0;
     }
 
+    int warnings = 0;
     std::size_t index = 0;
     for (const auto& in : inputs) {
         ++index;
@@ -707,14 +708,24 @@ int run_encoder(int argc, char** argv, int start) {
             }
             continue;
         }
-        EncodeOptions per_file = opts;
-        auto src = load_input(in, per_file);
-        auto enc = encode(src, per_file);
-        write_file(out, enc);
-        if (delete_source && in != out && fs::exists(in)) fs::remove(in);
-        if (verbose) {
-            print_verbose_entry(index, in, out.generic_string(),
-                                clock.elapsed_str(), "encoding", "success");
+        try {
+            EncodeOptions per_file = opts;
+            auto src = load_input(in, per_file);
+            auto enc = encode(src, per_file);
+            write_file(out, enc);
+            if (delete_source && in != out && fs::exists(in)) fs::remove(in);
+            if (verbose) {
+                print_verbose_entry(index, in, out.generic_string(),
+                                    clock.elapsed_str(), "encoding", "success");
+            }
+        } catch (const std::exception& e) {
+            ++warnings;
+            std::cerr << kName << ": warning: " << in.generic_string()
+                      << ": " << e.what() << std::endl;
+            if (verbose) {
+                print_verbose_entry(index, in, "",
+                                    clock.elapsed_str(), "encoding", "failed");
+            }
         }
     }
     return 0;
@@ -782,82 +793,93 @@ int run_decoder(int argc, char** argv, int start) {
         return base / expand_pattern(pattern, in, file_i, mip_i, layer_i, tex_w, tex_h, fmt);
     };
 
+    int warnings = 0;
     std::size_t index = 0;
     for (const auto& in : inputs) {
         ++index;
         VerboseClock clock;
-        auto bytes = read_file(in);
-        auto img = decode(bytes.data(), bytes.size());
+        try {
+            auto bytes = read_file(in);
+            auto img = decode(bytes.data(), bytes.size());
 
-        // Determine which mips/layers to emit.
-        std::vector<int> mip_indices;
-        std::vector<int> layer_indices;
-        if (all_mips) {
-            const int n = std::max(1, img.num_mipmaps);
-            for (int i = 0; i < n; ++i) mip_indices.push_back(i);
-        } else {
-            mip_indices.push_back(fixed_mip);
-        }
-        if (all_layers) {
-            const int n = std::max(1, img.num_layers);
-            for (int i = 0; i < n; ++i) layer_indices.push_back(i);
-        } else {
-            layer_indices.push_back(fixed_layer);
-        }
+            // Determine which mips/layers to emit.
+            std::vector<int> mip_indices;
+            std::vector<int> layer_indices;
+            if (all_mips) {
+                const int n = std::max(1, img.num_mipmaps);
+                for (int i = 0; i < n; ++i) mip_indices.push_back(i);
+            } else {
+                mip_indices.push_back(fixed_mip);
+            }
+            if (all_layers) {
+                const int n = std::max(1, img.num_layers);
+                for (int i = 0; i < n; ++i) layer_indices.push_back(i);
+            } else {
+                layer_indices.push_back(fixed_layer);
+            }
 
-        const bool multi_out =
-            mip_indices.size() > 1 || layer_indices.size() > 1;
-        bool any_written = false;
-        for (int layer_i : layer_indices) {
-            for (int mip_i : mip_indices) {
-                fs::path out;
-                OutputFormat fmt;
-                if (multi_out) {
-                    fmt = explicit_format.value_or(OutputFormat::PNG);
-                    out = pattern_output(in, static_cast<int>(index), mip_i, layer_i,
-                                         img.width, img.height, fmt);
-                } else if (preserve_path) {
-                    out = in;
-                    fmt = explicit_format.value_or(OutputFormat::PNG);
-                    out.replace_extension(output_format_ext(fmt));
-                } else if (inputs.size() == 1 && !output_file.empty() &&
-                           !(fs::exists(output_file) && fs::is_directory(output_file))) {
-                    out = output_file;
-                    fmt = resolve_format(out);
-                } else if (!output_dir.empty() ||
-                           (!output_file.empty() && fs::exists(output_file) &&
-                            fs::is_directory(output_file))) {
-                    fmt = explicit_format.value_or(OutputFormat::PNG);
-                    fs::path base = !output_dir.empty() ? output_dir : output_file;
-                    out = base / (in.stem().string() + output_format_ext(fmt));
-                } else {
-                    out = in;
-                    fmt = explicit_format.value_or(OutputFormat::PNG);
-                    out.replace_extension(output_format_ext(fmt));
-                }
-                dopts.format      = fmt;
-                dopts.mip_index   = mip_i;
-                dopts.layer_index = layer_i;
+            const bool multi_out =
+                mip_indices.size() > 1 || layer_indices.size() > 1;
+            bool any_written = false;
+            for (int layer_i : layer_indices) {
+                for (int mip_i : mip_indices) {
+                    fs::path out;
+                    OutputFormat fmt;
+                    if (multi_out) {
+                        fmt = explicit_format.value_or(OutputFormat::PNG);
+                        out = pattern_output(in, static_cast<int>(index), mip_i, layer_i,
+                                             img.width, img.height, fmt);
+                    } else if (preserve_path) {
+                        out = in;
+                        fmt = explicit_format.value_or(OutputFormat::PNG);
+                        out.replace_extension(output_format_ext(fmt));
+                    } else if (inputs.size() == 1 && !output_file.empty() &&
+                               !(fs::exists(output_file) && fs::is_directory(output_file))) {
+                        out = output_file;
+                        fmt = resolve_format(out);
+                    } else if (!output_dir.empty() ||
+                               (!output_file.empty() && fs::exists(output_file) &&
+                                fs::is_directory(output_file))) {
+                        fmt = explicit_format.value_or(OutputFormat::PNG);
+                        fs::path base = !output_dir.empty() ? output_dir : output_file;
+                        out = base / (in.stem().string() + output_format_ext(fmt));
+                    } else {
+                        out = in;
+                        fmt = explicit_format.value_or(OutputFormat::PNG);
+                        out.replace_extension(output_format_ext(fmt));
+                    }
+                    dopts.format      = fmt;
+                    dopts.mip_index   = mip_i;
+                    dopts.layer_index = layer_i;
 
-                if (!overwrite && fs::exists(out)) {
+                    if (!overwrite && fs::exists(out)) {
+                        if (verbose) {
+                            print_verbose_entry(index, in, out.generic_string(),
+                                                clock.elapsed_str(), "decoding",
+                                                "skipped");
+                        }
+                        continue;
+                    }
+                    auto blob = write_image(img, dopts);
+                    write_file(out, blob);
+                    any_written = true;
                     if (verbose) {
                         print_verbose_entry(index, in, out.generic_string(),
                                             clock.elapsed_str(), "decoding",
-                                            "skipped");
+                                            "success");
                     }
-                    continue;
-                }
-                auto blob = write_image(img, dopts);
-                write_file(out, blob);
-                any_written = true;
-                if (verbose) {
-                    print_verbose_entry(index, in, out.generic_string(),
-                                        clock.elapsed_str(), "decoding",
-                                        "success");
                 }
             }
+            if (delete_source && any_written && fs::exists(in)) fs::remove(in);
+        } catch (const std::exception& e) {
+            ++warnings;
+            std::cerr << kName << ": warning: " << in.generic_string()
+                      << ": " << e.what() << std::endl;
+            if (verbose) {
+                print_verbose_entry(index, in, "",
+                                    clock.elapsed_str(), "decoding", "failed");
+            }
         }
-        if (delete_source && any_written && fs::exists(in)) fs::remove(in);
     }
     return 0;
 }
@@ -1112,14 +1134,23 @@ int run_inspect(int argc, char** argv, int start) {
         for (const auto& in : inputs) {
             ++index;
             VerboseClock clock;
-            auto bytes = read_file(in);
-            auto img = load(bytes.data(), bytes.size());
-            auto json = build_inspect_json(in, img, fields);
-            const fs::path out = output / (in.stem().string() + ".json");
-            write_text(out, json + "\n");
-            if (verbose) {
-                print_verbose_entry(index, in, out.generic_string(),
-                                    clock.elapsed_str(), "inspection", "success");
+            try {
+                auto bytes = read_file(in);
+                auto img = load(bytes.data(), bytes.size());
+                auto json = build_inspect_json(in, img, fields);
+                const fs::path out = output / (in.stem().string() + ".json");
+                write_text(out, json + "\n");
+                if (verbose) {
+                    print_verbose_entry(index, in, out.generic_string(),
+                                        clock.elapsed_str(), "inspection", "success");
+                }
+            } catch (const std::exception& e) {
+                std::cerr << kName << ": warning: " << in.generic_string()
+                          << ": " << e.what() << std::endl;
+                if (verbose) {
+                    print_verbose_entry(index, in, "",
+                                        clock.elapsed_str(), "inspection", "failed");
+                }
             }
         }
         return 0;
@@ -1131,19 +1162,24 @@ int run_inspect(int argc, char** argv, int start) {
     std::cout << "[\n";
     for (std::size_t i = 0; i < inputs.size(); ++i) {
         clocks.emplace_back();
-        auto bytes = read_file(inputs[i]);
-        auto img = load(bytes.data(), bytes.size());
-        auto json = build_inspect_json(inputs[i], img, fields, 4);
-        std::istringstream is(json);
-        std::string line;
-        bool first_line = true;
-        while (std::getline(is, line)) {
-            if (!first_line) std::cout << "\n";
-            std::cout << "  " << line;
-            first_line = false;
+        try {
+            auto bytes = read_file(inputs[i]);
+            auto img = load(bytes.data(), bytes.size());
+            auto json = build_inspect_json(inputs[i], img, fields, 4);
+            std::istringstream is(json);
+            std::string line;
+            bool first_line = true;
+            while (std::getline(is, line)) {
+                if (!first_line) std::cout << "\n";
+                std::cout << "  " << line;
+                first_line = false;
+            }
+            if (i + 1 < inputs.size()) std::cout << ",";
+            std::cout << "\n";
+        } catch (const std::exception& e) {
+            std::cerr << kName << ": warning: " << inputs[i].generic_string()
+                      << ": " << e.what() << std::endl;
         }
-        if (i + 1 < inputs.size()) std::cout << ",";
-        std::cout << "\n";
     }
     std::cout << "]\n";
     if (verbose) {
