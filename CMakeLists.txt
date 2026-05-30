@@ -10,9 +10,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-option(AST26_BUILD_CLI   "Build the ast26 CLI executable"   ON)
-option(AST26_BUILD_GIMP  "Build the GIMP 2.x file plug-in"  OFF)
-option(AST26_BUILD_GIMP3 "Build the GIMP 3.0 file plug-in"  OFF)
+option(AST26_BUILD_CLI    "Build the ast26 CLI executable"    ON)
+option(AST26_BUILD_SHARED "Build the shared library (.so/.dll)" OFF)
+option(AST26_BUILD_GIMP   "Build the GIMP 2.x file plug-in"   OFF)
+option(AST26_BUILD_GIMP3  "Build the GIMP 3.0 file plug-in"   OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -111,6 +112,41 @@ if(AST26_BUILD_CLI)
     endif()
 
     install(TARGETS ast26 RUNTIME DESTINATION bin)
+endif()
+
+# ------------------------------------------------------------------
+# Shared library (.so / .dll) for mobile / JNI integration
+# ------------------------------------------------------------------
+if(AST26_BUILD_SHARED)
+    add_library(ast26_shared SHARED
+        src/container.cpp
+        src/codec.cpp
+        src/astc_bridge.cpp
+        src/image_io.cpp
+        src/dds_io.cpp
+        src/color_format.cpp
+        src/mipgen.cpp
+        src/flip.cpp
+        src/api.cpp)
+    target_include_directories(ast26_shared
+        PUBLIC  include
+        PRIVATE src third_party/stb)
+    target_link_libraries(ast26_shared
+        PUBLIC  ast26_astcenc
+        PRIVATE ast26_miniz ast26_bcdec)
+    set_target_properties(ast26_shared PROPERTIES
+        OUTPUT_NAME ast26
+        VERSION     ${PROJECT_VERSION}
+        SOVERSION   1)
+
+    if(ANDROID)
+        target_link_options(ast26_shared PRIVATE -Wl,--no-undefined)
+        target_link_libraries(ast26_shared PRIVATE log)
+    endif()
+
+    install(TARGETS ast26_shared
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin)
 endif()
 
 # ------------------------------------------------------------------
